@@ -50,10 +50,3 @@ logger.info("Retired %d stale config row(s)", retired)
 
 display(alert_results)
 
-# COMMAND ----------
-
-dbutils.secrets.listScopes()
-
-# COMMAND ----------
-
-dbutils.secrets.list("anomaly_alerting")
