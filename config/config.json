@@ -1,0 +1,150 @@
+{
+  "environment": {
+    "name": "dev",
+    "log_level": "INFO"
+  },
+
+  "unity_catalog": {
+    "catalog": "workspace",
+    "source_schema": "bronze",
+    "config_schema": "config",
+    "source_table": "sales_transactions",
+    "source_table_full_name": "{catalog}.{source_schema}.{source_table}"
+  },
+
+  "state_tables": {
+    "anomaly_rules_config": "anomaly_rules_config",
+    "metrics_baseline": "metrics_baseline",
+    "anomaly_detection_log": "anomaly_detection_log",
+    "alert_log": "alert_log"
+  },
+
+  "source_data": {
+    "local_csv_path": "/dbfs/FileStore/anomaly_detection/anomaly_detection_sample_50_rows.csv",
+    "load_format": "csv",
+    "csv_options": {
+      "header": true,
+      "inferSchema": true
+    },
+    "timestamp_column": "event_time",
+    "ingestion_timestamp_column": "ingestion_time",
+    "id_columns": ["row_id"],
+    "duplicate_key_columns": ["transaction_id"],
+    "monitored_null_columns": ["customer_id", "transaction_id", "sales_amount"],
+    "numeric_metric_columns": ["sales_amount", "activity_count"],
+    "activity_column": "activity_count",
+    "status_column": "status",
+    "expected_status_values": ["SUCCESS", "NO_ACTIVITY"]
+  },
+
+  "metrics_engine": {
+    "grain": "hourly",
+    "baseline_window_periods": 24,
+    "min_history_periods_for_stats": 5,
+    "parallelism": {
+      "enabled": true,
+      "max_workers": 4
+    }
+  },
+
+  "anomaly_rules": {
+    "sudden_increase": {
+      "enabled": true,
+      "metric": "sum_sales_amount",
+      "method": "pct_change",
+      "threshold_pct": 50.0,
+      "severity": "HIGH"
+    },
+    "sudden_decrease": {
+      "enabled": true,
+      "metric": "sum_sales_amount",
+      "method": "pct_change",
+      "threshold_pct": -50.0,
+      "severity": "HIGH"
+    },
+    "value_anomaly": {
+      "enabled": true,
+      "metric": "sales_amount",
+      "method": "zscore",
+      "zscore_threshold": 3.0,
+      "fixed_upper_threshold": 50000,
+      "fixed_lower_threshold": 0,
+      "use_fixed_threshold": true,
+      "severity": "CRITICAL"
+    },
+    "missing_zero_activity": {
+      "enabled": true,
+      "metric": "sum_activity_count",
+      "zero_activity_value": 0,
+      "consecutive_periods_before_alert": 1,
+      "severity": "HIGH"
+    },
+    "stale_data": {
+      "enabled": true,
+      "max_allowed_staleness_minutes": 180,
+      "severity": "MEDIUM"
+    },
+    "duplicate_record_anomaly": {
+      "enabled": true,
+      "metric": "duplicate_count",
+      "method": "pct_change",
+      "threshold_pct": 100.0,
+      "minimum_duplicate_count": 1,
+      "severity": "MEDIUM"
+    },
+    "null_data_quality_spike": {
+      "enabled": true,
+      "metric": "null_ratio",
+      "method": "pct_change",
+      "threshold_pct": 100.0,
+      "minimum_null_ratio": 0.05,
+      "severity": "MEDIUM"
+    }
+  },
+
+  "severity_routing": {
+    "CRITICAL": ["email", "teams"],
+    "HIGH": ["email"],
+    "MEDIUM": ["email"],
+    "LOW": ["slack"]
+  },
+
+  "alerting": {
+    "dedupe_alerts": false,
+    "email": {
+      "enabled": true,
+      "smtp_host": "smtp.office365.com",
+      "smtp_port": 587,
+      "use_tls": true,
+      "sender_email": "your-sender@example.com",
+      "sender_password_secret_scope": "anomaly_alerting",
+      "sender_password_secret_key": "smtp_password",
+      "recipients": ["person@example.com"],
+      "cc": [],
+      "subject_template": "[{severity}] Anomaly Alert - {anomaly_type} detected in {table_name}",
+      "send_digest": true,
+      "digest_subject_template": "[Anomaly Digest] {count} anomalies detected - {run_date}"
+    },
+    "slack": {
+      "enabled": false,
+      "webhook_url_secret_scope": "anomaly_alerting",
+      "webhook_url_secret_key": "slack_webhook_url",
+      "channel": "#data-alerts"
+    },
+    "teams": {
+      "enabled": false,
+      "webhook_url_secret_scope": "anomaly_alerting",
+      "webhook_url_secret_key": "teams_webhook_url"
+    },
+    "retry": {
+      "max_attempts": 2,
+      "backoff_seconds": 5
+    }
+  },
+
+  "logging": {
+    "log_table": "{catalog}.{config_schema}.pipeline_run_log",
+    "write_logs_to_table": true,
+    "log_to_console": true
+  }
+}
